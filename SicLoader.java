@@ -206,6 +206,8 @@ public class SicLoader {
 	 * 심볼 테이블 생성 이후에만 modification(M) 레코드를 처리한다.
 	 */
 	public void modification(File objectCode) {
+		if (rMgr.debugInstructionList == null)
+		    rMgr.debugInstructionList = new java.util.ArrayList<>();
 		try (java.io.BufferedReader reader = new java.io.BufferedReader(new java.io.FileReader(objectCode))) {
 			String line;
 			int sectionStartAddr = 0;
@@ -291,57 +293,57 @@ public class SicLoader {
 			}
 			// After all modification records have been applied, append all valid instructions to instructionListModel
 			if (rMgr.instructionListModel != null) {
-				System.out.println("[DEBUG] Dumping instructionListModel contents:");
-				for (int idx = 0; idx < rMgr.instructionListModel.getSize(); idx++) {
-				    System.out.printf("[DEBUG] instructionListModel[%d] = %s%n", idx, rMgr.instructionListModel.getElementAt(idx));
-				}
-				Set<Integer> seen = new HashSet<>();
-				for (int i = 0; i < 0x1100;) {
-					int byte1 = rMgr.memory[i] & 0xFF;
-					int byte2 = (i + 1 < 0x1100) ? (rMgr.memory[i + 1] & 0xFF) : -1;
-					int byte3 = (i + 2 < 0x1100) ? (rMgr.memory[i + 2] & 0xFF) : -1;
-					// Skip known patterns before adding to instructionListModel
-					if (byte1 == 0xFF || byte1 == 0xF1 || byte1 == 0x05 || seen.contains(i)) {
-					    i++;
-					    continue;
-					}
-					// Skip 3-byte sequences like 00 10 00 (== 0x001000)
-					if (i + 2 < 0x1100 &&
-					    (rMgr.memory[i] & 0xFF) == 0x00 &&
-					    (rMgr.memory[i + 1] & 0xFF) == 0x10 &&
-					    (rMgr.memory[i + 2] & 0xFF) == 0x00) {
-					    i += 3;
-					    continue;
-					}
-					// Skip 3-byte sequence 45 4F 46 (ASCII "EOF")
-					if (i + 2 < 0x1100 &&
-					    (rMgr.memory[i] & 0xFF) == 0x45 &&
-					    (rMgr.memory[i + 1] & 0xFF) == 0x4F &&
-					    (rMgr.memory[i + 2] & 0xFF) == 0x46) {
-					    i += 3;
-					    continue;
-					}
-					int strippedOpcode = byte1 & 0xFC;
-					boolean extended = (rMgr.memory[i + 1] & 0x10) != 0;
-					int format = getInstructionFormat(strippedOpcode, extended);
-					int length = switch (format) {
-						case 1 -> 1;
-						case 2 -> 2;
-						case 3 -> 3;
-						case 4 -> 4;
-						default -> 3;
-					};
-					StringBuilder sb2 = new StringBuilder();
-					for (int j = 0; j < length; j++) {
-						int addr = i + j;
-						if (addr >= 0x1100 || rMgr.memory[addr] == (char) 0xFF) break;
-						sb2.append(String.format("%02X ", (int) rMgr.memory[addr] & 0xFF));
-						seen.add(addr);
-					}
-					String formatted = String.format("%04X : %s", i, sb2.toString().trim());
-					rMgr.instructionListModel.addElement(formatted);
-					i += length;
-				}
+			    Set<Integer> seen = new HashSet<>();
+			    for (int i = 0; i < 0x1100;) {
+			        int byte1 = rMgr.memory[i] & 0xFF;
+			        if (byte1 == 0xFF || byte1 == 0xF1 || byte1 == 0x05 || seen.contains(i)) {
+			            i++;
+			            continue;
+			        }
+			        if (i + 2 < 0x1100 &&
+			            (rMgr.memory[i] & 0xFF) == 0x00 &&
+			            (rMgr.memory[i + 1] & 0xFF) == 0x10 &&
+			            (rMgr.memory[i + 2] & 0xFF) == 0x00) {
+			            i += 3;
+			            continue;
+			        }
+			        if (i + 2 < 0x1100 &&
+			            (rMgr.memory[i] & 0xFF) == 0x45 &&
+			            (rMgr.memory[i + 1] & 0xFF) == 0x4F &&
+			            (rMgr.memory[i + 2] & 0xFF) == 0x46) {
+			            i += 3;
+			            continue;
+			        }
+
+			        int strippedOpcode = byte1 & 0xFC;
+			        boolean extended = (i + 1 < 0x1100) && ((rMgr.memory[i + 1] & 0x10) != 0);
+			        int format = getInstructionFormat(strippedOpcode, extended);
+			        int length = switch (format) {
+			            case 1 -> 1;
+			            case 2 -> 2;
+			            case 3 -> 3;
+			            case 4 -> 4;
+			            default -> 3;
+			        };
+
+			        StringBuilder sb2 = new StringBuilder();
+			        for (int j = 0; j < length; j++) {
+			            int addr = i + j;
+			            if (addr >= 0x1100 || rMgr.memory[addr] == (char) 0xFF) break;
+			            sb2.append(String.format("%02X ", (int) rMgr.memory[addr] & 0xFF));
+			            seen.add(addr);
+			        }
+
+			        String mnemonic = rMgr.getMnemonic(strippedOpcode);
+			        ResourceManager.InstructionEntry debugEntry = new ResourceManager.InstructionEntry(i, sb2.toString().replace(" ", ""), mnemonic, strippedOpcode, i);
+			        rMgr.debugInstructionList.add(debugEntry);
+			        ResourceManager.InstructionEntry entry = new ResourceManager.InstructionEntry(i, sb2.toString().replace(" ", ""), mnemonic, strippedOpcode, i);
+			        System.out.printf("[MOD][DEBUG] %04X : %s | %-6s (opcode=%02X)%n",
+			            i, entry.hexCode, entry.mnemonic, entry.opcode);
+			        String formatted = String.format("%04X : %s", i, sb2.toString().replace(" ", ""));
+			        rMgr.instructionListModel.addElement(formatted);
+			        i += length;
+			    }
 			}
 		} catch (Exception e) {
 			e.printStackTrace();
@@ -356,5 +358,21 @@ public class SicLoader {
 			value >>= 8;
 		}
 		return arr;
+	}
+
+	public static class InstructionEntry {
+	    public int address;
+	    public String hexCode;
+	    public String mnemonic;
+	    public int opcode;
+	    public int locctr;
+
+	    public InstructionEntry(int address, String hexCode, String mnemonic, int opcode, int locctr) {
+	        this.address = address;
+	        this.hexCode = hexCode;
+	        this.mnemonic = mnemonic;
+	        this.opcode = opcode;
+	        this.locctr = locctr;
+	    }
 	}
 }

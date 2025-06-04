@@ -36,21 +36,22 @@ public class VisualSimulator {
 	 * 프로그램 로드 명령을 전달한다.
 	 */
 	public void load(File program) {
-		// ...
+		// Reset instruction highlight
+		resourceManager.currentInstructionIndex = -1;
 		sicLoader.load(program);           // T 레코드로 메모리 초기화
 		sicLoader.modification(program);  // M 레코드로 메모리 수정
 		sicSimulator.load(program);       // 수정된 메모리 기반으로 시뮬레이터 준비
 		update();
 		dumpMemory();
-
-	};
+	}
 
 	/**
 	 * 하나의 명령어만 수행할 것을 SicSimulator에 요청한다.
 	 */
 	public void oneStep() {
-
-	};
+	    sicSimulator.oneStep();
+	    update(); // 화면 갱신
+	}
 
 	/**
 	 * 남아있는 모든 명령어를 수행할 것을 SicSimulator에 요청한다.
@@ -93,6 +94,24 @@ public class VisualSimulator {
         // Ensure instruction list model updates the visible list
         if (instructionList != null && resourceManager.instructionListModel != null) {
             instructionList.setModel(resourceManager.instructionListModel);
+            // Highlight: select instruction whose LOCCTR + length == PC
+            int pc = resourceManager.register[ResourceManager.REG_PC];
+            int matchIndex = -1;
+            for (int i = 0; i < resourceManager.debugInstructionList.size(); i++) {
+                ResourceManager.InstructionEntry e = resourceManager.debugInstructionList.get(i);
+                int instSize = e.hexCode.replaceAll(" ", "").length() / 2;
+                if (e.address + instSize == pc) {
+                    matchIndex = i;
+                    break;
+                }
+            }
+
+            if (matchIndex == -1) {
+                instructionList.clearSelection(); // prevent highlight if PC doesn't match any instruction
+            } else {
+                instructionList.setSelectedIndex(matchIndex);
+                instructionList.ensureIndexIsVisible(matchIndex);
+            }
         }
 	}
 
@@ -255,6 +274,9 @@ public class VisualSimulator {
 			javax.swing.JButton stepBtn = new javax.swing.JButton("실행(1step)");
 			stepBtn.setBounds(580, 300, 120, 25);
 			frame.add(stepBtn);
+			stepBtn.addActionListener(e -> {
+			    oneStep();
+			});
 
 			javax.swing.JButton allBtn = new javax.swing.JButton("실행(all)");
 			allBtn.setBounds(580, 335, 120, 25);

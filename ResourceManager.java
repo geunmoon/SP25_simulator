@@ -17,6 +17,31 @@ import java.util.HashMap;
  * 차이가 있다.
  */
 public class ResourceManager {
+    public int currentInstructionIndex = -1;
+    public SicLoader sicLoader; // will be assigned externally
+    public HashMap<Integer, String> instructionTable = new HashMap<>();
+    public static class InstructionEntry {
+        public int address;
+        public String hexCode;
+        public String mnemonic;
+        public int opcode;
+        public int locctr;
+
+        public InstructionEntry(int address, String hexCode, String mnemonic, int opcode, int locctr) {
+            this.address = address;
+            this.hexCode = hexCode;
+            this.mnemonic = mnemonic;
+            this.opcode = opcode;
+            this.locctr = locctr;
+        }
+
+        @Override
+        public String toString() {
+            return String.format("@%06X : %s | %-6s (opcode=%02X, locctr=%06X)", address, hexCode, mnemonic, opcode, locctr);
+        }
+    }
+
+    public ArrayList<InstructionEntry> debugInstructionList = new ArrayList<>();
     public javax.swing.JTextArea logArea;
 	public String programName;
 	public int programStartAddr;
@@ -60,6 +85,67 @@ public class ResourceManager {
 		Arrays.fill(memory, (char)0xFF);
 		Arrays.fill(register, 0);
 		register_F = 0.0;
+
+        instructionTable.clear();
+        instructionTable.put(0x18, "ADD");
+        instructionTable.put(0x58, "ADDF");
+        instructionTable.put(0x90, "ADDR");
+        instructionTable.put(0x40, "AND");
+        instructionTable.put(0xB4, "CLEAR");
+        instructionTable.put(0x28, "COMP");
+        instructionTable.put(0x88, "COMPF");
+        instructionTable.put(0xA0, "COMPR");
+        instructionTable.put(0x24, "DIV");
+        instructionTable.put(0x64, "DIVF");
+        instructionTable.put(0x9C, "DIVR");
+        instructionTable.put(0xC4, "FIX");
+        instructionTable.put(0xC0, "FLOAT");
+        instructionTable.put(0xF4, "HIO");
+        instructionTable.put(0x3C, "J");
+        instructionTable.put(0x30, "JEQ");
+        instructionTable.put(0x34, "JGT");
+        instructionTable.put(0x38, "JLT");
+        instructionTable.put(0x48, "JSUB");
+        instructionTable.put(0x00, "LDA");
+        instructionTable.put(0x68, "LDB");
+        instructionTable.put(0x50, "LDCH");
+        instructionTable.put(0x70, "LDF");
+        instructionTable.put(0x08, "LDL");
+        instructionTable.put(0x6C, "LDS");
+        instructionTable.put(0x74, "LDT");
+        instructionTable.put(0x04, "LDX");
+        instructionTable.put(0xD0, "LPS");
+        instructionTable.put(0x20, "MUL");
+        instructionTable.put(0x60, "MULF");
+        instructionTable.put(0x98, "MULR");
+        instructionTable.put(0xC8, "NORM");
+        instructionTable.put(0x44, "OR");
+        instructionTable.put(0xD8, "RD");
+        instructionTable.put(0xAC, "RMO");
+        instructionTable.put(0x4C, "RSUB");
+        instructionTable.put(0xA4, "SHIFTL");
+        instructionTable.put(0xA8, "SHIFTR");
+        instructionTable.put(0xF0, "SIO");
+        instructionTable.put(0xEC, "SSK");
+        instructionTable.put(0x0C, "STA");
+        instructionTable.put(0x78, "STB");
+        instructionTable.put(0x54, "STCH");
+        instructionTable.put(0x80, "STF");
+        instructionTable.put(0xD4, "STI");
+        instructionTable.put(0x14, "STL");
+        instructionTable.put(0x7C, "STS");
+        instructionTable.put(0xE8, "STSW");
+        instructionTable.put(0x84, "STT");
+        instructionTable.put(0x10, "STX");
+        instructionTable.put(0x1C, "SUB");
+        instructionTable.put(0x5C, "SUBF");
+        instructionTable.put(0x94, "SUBR");
+        instructionTable.put(0xB0, "SVC");
+        instructionTable.put(0xE0, "TD");
+        instructionTable.put(0xF8, "TIO");
+        instructionTable.put(0x2C, "TIX");
+        instructionTable.put(0xB8, "TIXR");
+        instructionTable.put(0xDC, "WD");
 
 		if (visualSimulator != null) {
 			visualSimulator.update();
@@ -174,6 +260,15 @@ public class ResourceManager {
 	 */
 	public int byteToInt(byte[] data) {
 		return 0;
+	}
+
+	/**
+	 * 주어진 opcode 값에 해당하는 mnemonic 문자열을 반환한다.
+	 * @param opcode 명령어 코드 (ni 비트 제거된 상태)
+	 * @return mnemonic 문자열, 없으면 "UNKNOWN"
+	 */
+	public String getMnemonic(int opcode) {
+		return instructionTable.getOrDefault(opcode, "UNKNOWN");
 	}
 
 }
