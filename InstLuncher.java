@@ -87,7 +87,7 @@ public class InstLuncher {
     // Format 3/4
     public void STL(ResourceManager.InstructionEntry entry) {
         // [STL] Store the contents of L register to the effective address
-        // But as RETADR is not defined in the spec, store 0xFFFFFF to register L
+        // But as RETADR is not defined in the spec, store 0xFFFFFF to register
         rMgr.register[ResourceManager.REG_L] = 0x000000;
         System.out.printf("[STL] Set register L to 0xFFFFFF (assumed RETADR)\n");
     }

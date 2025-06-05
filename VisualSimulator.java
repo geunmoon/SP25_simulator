@@ -29,7 +29,8 @@ public class VisualSimulator {
 	SicSimulator sicSimulator = new SicSimulator(resourceManager);
 
 	public VisualSimulator() {
-	    initializeGUI();
+		resourceManager.visualSimulator = this;
+		initializeGUI();
 	}
 
 	/**
