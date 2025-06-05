@@ -49,6 +49,8 @@ public class VisualSimulator {
 	 * 하나의 명령어만 수행할 것을 SicSimulator에 요청한다.
 	 */
 	public void oneStep() {
+	    // Save the last executed location counter before executing the next step
+	    resourceManager.lastExecutedAddress = resourceManager.register[ResourceManager.REG_PC];
 	    sicSimulator.oneStep();
 	    update(); // 화면 갱신
 	}
@@ -57,12 +59,32 @@ public class VisualSimulator {
 	 * 남아있는 모든 명령어를 수행할 것을 SicSimulator에 요청한다.
 	 */
 	public void allStep() {
+	    sicSimulator.allStep();
+	    update(); // 화면 갱신
+	}
 
-	};
+	/**
+	 * Adds a log string to the execution log and updates the UI.
+	 */
+	public void addLog(String log) {
+		resourceManager.executionLog.add(log);
+		update(); // Refresh the UI to show the new log
+		resourceManager.visualSimulator.updateLogDisplay();
+	}
 
 	/**
 	 * 화면을 최신값으로 갱신하는 역할을 수행한다.
 	 */
+	public void updateLogDisplay() {
+	    if (resourceManager.logArea != null && resourceManager.executionLog != null) {
+	        StringBuilder logContent = new StringBuilder();
+	        for (String line : resourceManager.executionLog) {
+	            logContent.append(line).append("\n");
+	        }
+	        resourceManager.logArea.setText(logContent.toString());
+	    }
+	}
+
 	public void update() {
 		for (int i = 0; i < regDecFields.length; i++) {
 			if (i == 6 || i == 9) { // F, SW → only hex
@@ -91,16 +113,25 @@ public class VisualSimulator {
 		// Update start address in memory text field if available
 		if (memStartField != null)
 			memStartField.setText(String.format("%d", resourceManager.memoryStartAddr));
+
+        // Update execution log area
+        if (resourceManager.logArea != null && resourceManager.executionLog != null) {
+            StringBuilder logContent = new StringBuilder();
+            for (String line : resourceManager.executionLog) {
+                logContent.append(line).append("\n");
+            }
+            resourceManager.logArea.setText(logContent.toString());
+        }
+
         // Ensure instruction list model updates the visible list
         if (instructionList != null && resourceManager.instructionListModel != null) {
             instructionList.setModel(resourceManager.instructionListModel);
-            // Highlight: select instruction whose LOCCTR + length == PC
-            int pc = resourceManager.register[ResourceManager.REG_PC];
+            // Highlight: select instruction based on lastExecutedAddress
+            int lastExecuted = resourceManager.lastExecutedAddress;
             int matchIndex = -1;
             for (int i = 0; i < resourceManager.debugInstructionList.size(); i++) {
                 ResourceManager.InstructionEntry e = resourceManager.debugInstructionList.get(i);
-                int instSize = e.hexCode.replaceAll(" ", "").length() / 2;
-                if (e.address + instSize == pc) {
+                if (e.address == lastExecuted) {
                     matchIndex = i;
                     break;
                 }
@@ -281,6 +312,9 @@ public class VisualSimulator {
 			javax.swing.JButton allBtn = new javax.swing.JButton("실행(all)");
 			allBtn.setBounds(580, 335, 120, 25);
 			frame.add(allBtn);
+			allBtn.addActionListener(e -> {
+				allStep();
+			});
 
 			javax.swing.JButton exitBtn = new javax.swing.JButton("종료");
 			exitBtn.setBounds(580, 370, 120, 25);

@@ -57,6 +57,32 @@ public class SicSimulator {
 
 	}
 
+    /**
+     * 주어진 opcode와 extended 플래그를 기준으로 명령어 형식을 판단한다.
+     * @param opcode 실제 명령어에서 ni 비트를 제외한 순수 opcode 값 (e.g., 0x14)
+     * @param extended extended format 여부 (+가 붙은 경우 true)
+     * @return 1~4 중의 형식 번호
+     */
+    private int getInstructionFormat(int opcode, boolean extended) {
+        // Format 1 instructions
+        int[] format1Opcodes = {0xC4, 0xC0, 0xF4, 0xC8, 0xF0, 0xF8, 0xF1};
+        for (int f1 : format1Opcodes) {
+            if (opcode == f1) return 1;
+        }
+
+        // Format 2 instructions
+        int[] format2Opcodes = {0x90, 0xB4, 0xA0, 0x9C, 0x98, 0xAC, 0xA4, 0xA8, 0xB0, 0xB8};
+        for (int f2 : format2Opcodes) {
+            if (opcode == f2) return 2;
+        }
+
+        // Format 4 (extended) if flag is set
+        if (extended) return 4;
+
+        // Default to Format 3
+        return 3;
+    }
+
 	/**
 	 * 1개의 instruction이 수행된 모습을 보인다.
 	 */
@@ -74,7 +100,7 @@ public class SicSimulator {
 			return;
 		}
 
-	    int increment = switch (entry.hexCode.length() / 2) {
+	    int increment = switch (entry.hexCode.replaceAll(" ", "").length() / 2) {
 	        case 1 -> 1;
 	        case 2 -> 2;
 	        case 3 -> 3;
@@ -94,50 +120,119 @@ public class SicSimulator {
 	    );
 
 	    InstLuncher inst = new InstLuncher(rMgr);
+	    // Determine instruction format
+	    boolean extended = false;
+	    if (entry.hexCode.length() >= 3) {
+	    	int flagByte = Integer.parseInt(entry.hexCode.substring(2, 3), 16);
+	    	extended = (flagByte & 0x1) == 1;
+	    }
+	    int format = getInstructionFormat(entry.opcode, extended);
+	    System.out.printf("[DEBUG] Determined format = %d for opcode=%02X (extended=%b)\n", format, entry.opcode, extended);
 
-	    switch (entry.mnemonic.toUpperCase()) {
-	        case "STL" -> inst.STL(entry.address);
-	        case "JSUB" -> inst.JSUB(entry.address);
-	        case "LDA" -> inst.LDA(entry.address);
-	        case "COMP" -> inst.COMP(entry.address);
-	        case "JEQ" -> inst.JEQ(entry.address);
-	        case "J" -> inst.J(entry.address);
-	        case "STA" -> inst.STA(entry.address);
-	        case "CLEAR" -> inst.CLEAR(entry.address);
-	        case "LDT" -> inst.LDT(entry.address);
-	        case "TD" -> inst.TD(entry.address);
-	        case "RD" -> inst.RD(entry.address);
-	        case "COMPR" -> inst.COMPR(entry.address);
-	        case "STCH" -> inst.STCH(entry.address);
-	        case "TIXR" -> inst.TIXR(entry.address);
-	        case "JLT" -> inst.JLT(entry.address);
-	        case "STX" -> inst.STX(entry.address);
-	        case "LDCH" -> inst.LDCH(entry.address);
-	        case "WD" -> inst.WD(entry.address);
-	        case "RSUB" -> inst.RSUB(entry.address);
-	        default -> System.out.printf("[DEBUG] Unknown instruction mnemonic '%s' at %04X\n", entry.mnemonic, entry.address);
+	    // Parse nixbpe flags from instruction bytes if format >= 3
+	    int nixbpe = -1;
+	    if (format >= 3 && entry.hexCode.length() >= 4) {
+	        String hex = entry.hexCode.replaceAll(" ", "");
+	        int byte1 = Integer.parseInt(hex.substring(0, 2), 16);  // first byte
+	        int byte2 = Integer.parseInt(hex.substring(2, 4), 16);  // second byte
+
+	        int n = (byte1 >> 1) & 0x1;
+	        int i = byte1 & 0x1;
+	        int x = (byte2 >> 7) & 0x1;
+	        int b = (byte2 >> 6) & 0x1;
+	        int p = (byte2 >> 5) & 0x1;
+	        int e = (byte2 >> 4) & 0x1;
+
+	        System.out.printf("[DEBUG] n=%d i=%d x=%d b=%d p=%d e=%d\n", n, i, x, b, p, e);
+	        // Optionally: you can still pack these bits into nixbpe if needed
+			entry.nixbpe = (n << 5) | (i << 4) | (x << 3) | (b << 2) | (p << 1) | e;
 	    }
 
 	    // entry.address is effectively the LOCCTR (Location Counter) for this instruction
 	    // LOCCTR = entry.address
 	    // PC = LOCCTR + format length
 
-//	    rMgr.currentInstructionIndex++;
-//	    System.out.printf("[DEBUG] currentInstructionIndex is now %d\n", rMgr.currentInstructionIndex);
+	    // Dispatch instruction based on mnemonic and format
+	    switch (entry.mnemonic.toUpperCase()) {
+	        // Format 1
+	        case "RSUB" -> inst.RSUB(entry);
+
+	        // Format 2
+	        case "CLEAR" -> inst.CLEAR(entry);
+	        case "COMPR" -> inst.COMPR(entry);
+	        case "TIXR" -> inst.TIXR(entry);
+
+	        // Format 3/4
+	        case "STL" -> inst.STL(entry);
+	        case "JSUB" -> inst.JSUB(entry);
+	        case "LDA" -> inst.LDA(entry);
+	        case "COMP" -> inst.COMP(entry);
+	        case "JEQ" -> inst.JEQ(entry);
+	        case "J" -> inst.J(entry);
+	        case "STA" -> inst.STA(entry);
+	        case "LDT" -> inst.LDT(entry);
+	        case "TD" -> inst.TD(entry);
+	        case "RD" -> inst.RD(entry);
+	        case "STCH" -> inst.STCH(entry);
+	        case "JLT" -> inst.JLT(entry);
+	        case "STX" -> inst.STX(entry);
+	        case "LDCH" -> inst.LDCH(entry);
+	        case "WD" -> inst.WD(entry);
+
+	        default -> System.out.printf("[DEBUG] Unknown mnemonic '%s' at %04X\n", entry.mnemonic, entry.address);
+	    }
+
+	    addLog(String.format("Executed: %s at %06X", entry.mnemonic, entry.address));
+
+	    // If next PC is FFFFFF, log that the simulation is ending
+	    if (rMgr.register[ResourceManager.REG_PC] == 0xFFFFFF) {
+	        addLog("Simulation finished. No more instructions to execute.");
+	    }
+
 	    if (rMgr.visualSimulator != null) {
 	        rMgr.visualSimulator.update();
 	    }
+
 	}
 
 	/**
 	 * 남은 모든 instruction이 수행된 모습을 보인다.
 	 */
 	public void allStep() {
+	    if (rMgr.visualSimulator == null) {
+	        System.err.println("[WARN] visualSimulator is null in ResourceManager before allStep(). GUI log updates may fail.");
+	    }
+	    while (true) {
+	        int pc = rMgr.register[ResourceManager.REG_PC];
+	        ResourceManager.InstructionEntry entry = null;
+	        for (ResourceManager.InstructionEntry e : rMgr.debugInstructionList) {
+	            if (e.address == pc) {
+	                entry = e;
+	                break;
+	            }
+	        }
+	        if (entry == null) {
+	            System.out.printf("[DEBUG] No instruction found at PC = %06X\n", pc);
+	            break;
+	        }
+
+	        // 종료 조건: 주소가 0xFFFFFF인 명령어를 실행하면 종료
+	        if (entry.address == 0xFFFFFF) {
+	            System.out.println("[ALLSTEP] Termination condition met at address FFFFFF.");
+	            break;
+	        }
+
+	        oneStep(); // Already prints and logs instruction execution
+	    }
 	}
 
 	/**
 	 * 각 단계를 수행할 때 마다 관련된 기록을 남기도록 한다.
 	 */
 	public void addLog(String log) {
+		rMgr.executionLog.add(log);
+		if (rMgr.visualSimulator != null) {
+			rMgr.visualSimulator.updateLogDisplay();
+		}
 	}
 }

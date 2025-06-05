@@ -335,9 +335,16 @@ public class SicLoader {
 			        }
 
 			        String mnemonic = rMgr.getMnemonic(strippedOpcode);
-			        ResourceManager.InstructionEntry debugEntry = new ResourceManager.InstructionEntry(i, sb2.toString().replace(" ", ""), mnemonic, strippedOpcode, i);
-			        rMgr.debugInstructionList.add(debugEntry);
-			        ResourceManager.InstructionEntry entry = new ResourceManager.InstructionEntry(i, sb2.toString().replace(" ", ""), mnemonic, strippedOpcode, i);
+			        String rawHex = sb2.toString().replace(" ", "");
+			        int nixbpe = 0;
+			        if (format == 3 || format == 4) {
+			            if (rawHex.length() >= 4) {
+			                int secondByte = Integer.parseInt(rawHex.substring(2, 4), 16);
+			                nixbpe = (secondByte >> 2) & 0x3F; // get 6 bits
+			            }
+			        }
+			        ResourceManager.InstructionEntry entry = new ResourceManager.InstructionEntry(i, rawHex, mnemonic, strippedOpcode, i, nixbpe);
+			        rMgr.debugInstructionList.add(entry);
 			        System.out.printf("[MOD][DEBUG] %04X : %s | %-6s (opcode=%02X)%n",
 			            i, entry.hexCode, entry.mnemonic, entry.opcode);
 			        String formatted = String.format("%04X : %s", i, sb2.toString().replace(" ", ""));
