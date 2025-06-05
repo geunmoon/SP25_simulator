@@ -22,6 +22,9 @@ public class ResourceManager {
 	public ArrayList<String> executionLog = new ArrayList<>();
 	public int currentInstructionIndex = -1;
 	public int lastExecutedAddress = -1;
+	public Integer lastDeviceAddress = null;
+	public Integer lastEffectiveAddress=null;
+	public String lastUsedDeviceName = "";
 	public SicLoader sicLoader; // will be assigned externally
 	public HashMap<Integer, String> instructionTable = new HashMap<>();
 	public HashMap<String, FileInputStream> rdDeviceStreams = new HashMap<>();
@@ -93,6 +96,7 @@ public class ResourceManager {
 	public void initializeResource() {
 		Arrays.fill(memory, (char) 0xFF);
 		Arrays.fill(register, 0);
+		register[REG_L] = 0xFFFFFF;
 		register_F = 0.0;
 
 		instructionTable.clear();

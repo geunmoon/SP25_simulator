@@ -18,15 +18,19 @@ public class VisualSimulator {
     private javax.swing.JTextField startAddrField;
     private javax.swing.JTextField lengthField;
     private javax.swing.JTextField endField;
-	private javax.swing.JTextField memStartField;
+    private javax.swing.JTextField memStartField;
+    private javax.swing.JTextField targetField;
+    private javax.swing.JTextField deviceField;
 
     private javax.swing.JTextField[] regDecFields = new javax.swing.JTextField[10];
     private javax.swing.JTextField[] regHexFields = new javax.swing.JTextField[10];
     private javax.swing.JList<String> instructionList = new javax.swing.JList<>();
-    // logArea will be set via resourceManager
-	ResourceManager resourceManager = new ResourceManager();
-	SicLoader sicLoader = new SicLoader(resourceManager);
-	SicSimulator sicSimulator = new SicSimulator(resourceManager);
+    // logArea is a class-level field
+    private javax.swing.JTextArea logArea;
+
+    ResourceManager resourceManager = new ResourceManager();
+    SicLoader sicLoader = new SicLoader(resourceManager);
+    SicSimulator sicSimulator = new SicSimulator(resourceManager);
 
 	public VisualSimulator() {
 		resourceManager.visualSimulator = this;
@@ -58,10 +62,24 @@ public class VisualSimulator {
 
 	/**
 	 * 남아있는 모든 명령어를 수행할 것을 SicSimulator에 요청한다.
+	 * GUI가 멈추지 않도록 SwingWorker를 사용해 별도 스레드에서 실행한다.
 	 */
 	public void allStep() {
-	    sicSimulator.allStep();
-	    update(); // 화면 갱신
+	    new javax.swing.SwingWorker<Void, Void>() {
+	        @Override
+	        protected Void doInBackground() {
+	            while (!sicSimulator.isHalted()) {
+	                javax.swing.SwingUtilities.invokeLater(() -> oneStep());
+	                try {
+	                    Thread.sleep(100); // 200ms delay for visible pacing
+	                } catch (InterruptedException e) {
+	                    break;
+	                }
+	            }
+				oneStep();
+	            return null;
+	        }
+	    }.execute();
 	}
 
 	/**
@@ -96,13 +114,17 @@ public class VisualSimulator {
 						regHexFields[i].setText(String.format("%X", resourceManager.register[i]));
 				}
 			} else {
-				if (regDecFields[i] != null)
-					regDecFields[i].setText(String.valueOf(resourceManager.register[i]));
+				if (regDecFields[i] != null) {
+					int val = resourceManager.register[i];
+					if ((val & 0x800000) != 0) { // sign-extend 24-bit to 32-bit if negative
+						val |= 0xFF000000;
+					}
+					regDecFields[i].setText(String.valueOf(val));
+				}
 				if (regHexFields[i] != null)
-					regHexFields[i].setText(String.format("%X", resourceManager.register[i]));
+					regHexFields[i].setText(String.format("%06X", resourceManager.register[i] & 0xFFFFFF));
 			}
 		}
-
 		if (progNameField != null)
 		    progNameField.setText(resourceManager.programName);
 		if (startAddrField != null)
@@ -144,6 +166,18 @@ public class VisualSimulator {
                 instructionList.setSelectedIndex(matchIndex);
                 instructionList.ensureIndexIsVisible(matchIndex);
             }
+        }
+
+        if (targetField != null) {
+            if (resourceManager.lastEffectiveAddress == null || resourceManager.lastEffectiveAddress == Integer.MIN_VALUE) {
+                targetField.setText("");
+            } else {
+                targetField.setText(String.format("%06X", resourceManager.lastEffectiveAddress));
+            }
+        }
+        if (deviceField != null) {
+            String deviceName = resourceManager.lastUsedDeviceName;
+            deviceField.setText(deviceName != null ? deviceName : "");
         }
 	}
 
@@ -237,7 +271,7 @@ public class VisualSimulator {
 			targetLabel.setBounds(390, 160, 120, 20);
 			frame.add(targetLabel);
 
-			javax.swing.JTextField targetField = new javax.swing.JTextField();
+			targetField = new javax.swing.JTextField();
 			targetField.setBounds(590, 160, 100, 20);
 			targetField.setEditable(false);
 			frame.add(targetField);
@@ -298,7 +332,7 @@ public class VisualSimulator {
 			deviceLabel.setBounds(580, 230, 120, 20);
 			frame.add(deviceLabel);
 
-			javax.swing.JTextField deviceField = new javax.swing.JTextField();
+			deviceField = new javax.swing.JTextField();
 			deviceField.setBounds(580, 255, 120, 25);
 			deviceField.setEditable(false);
 			frame.add(deviceField);
@@ -321,11 +355,17 @@ public class VisualSimulator {
 			exitBtn.setBounds(580, 370, 120, 25);
 			frame.add(exitBtn);
 
+			exitBtn.addActionListener(e -> {
+				JFrame currentFrame = (JFrame) SwingUtilities.getWindowAncestor(exitBtn);
+				if (currentFrame != null) currentFrame.dispose();
+				new VisualSimulator();
+			});
+
 			javax.swing.JLabel logLabel = new javax.swing.JLabel("Log (명령어 수행 관련) :");
 			logLabel.setBounds(20, 420, 250, 20);
 			frame.add(logLabel);
 
-			javax.swing.JTextArea logArea = new javax.swing.JTextArea();
+			logArea = new javax.swing.JTextArea();
 			resourceManager.logArea = logArea;
 			javax.swing.JScrollPane logScroll = new javax.swing.JScrollPane(logArea);
 			logScroll.setBounds(20, 440, 720, 200);

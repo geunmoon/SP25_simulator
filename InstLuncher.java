@@ -20,6 +20,7 @@ public class InstLuncher {
         // Format 1: RSUB
         // Return to the address stored in register L
         rMgr.register[ResourceManager.REG_PC] = rMgr.register[ResourceManager.REG_L];
+        rMgr.lastUsedDeviceName = null;
         System.out.printf("[RSUB] Returned to address %06X from register L\n", rMgr.register[ResourceManager.REG_L]);
     }
 
@@ -87,9 +88,14 @@ public class InstLuncher {
     // Format 3/4
     public void STL(ResourceManager.InstructionEntry entry) {
         // [STL] Store the contents of L register to the effective address
-        // But as RETADR is not defined in the spec, store 0xFFFFFF to register
-        rMgr.register[ResourceManager.REG_L] = 0x000000;
-        System.out.printf("[STL] Set register L to 0xFFFFFF (assumed RETADR)\n");
+        int targetAddr = calculateEffectiveAddress(entry);
+        int val = rMgr.register[ResourceManager.REG_L];
+        rMgr.memory[targetAddr] = (char) ((val >> 16) & 0xFF);
+        rMgr.memory[targetAddr + 1] = (char) ((val >> 8) & 0xFF);
+        rMgr.memory[targetAddr + 2] = (char) (val & 0xFF);
+        System.out.printf("[STL] Stored register L value 0x%06X into memory at %06X\n", val, targetAddr);
+        System.out.printf("[STL] Memory at %06X: %02X %02X %02X\n", targetAddr,
+            (int) rMgr.memory[targetAddr], (int) rMgr.memory[targetAddr + 1], (int) rMgr.memory[targetAddr + 2]);
     }
 
     public void JSUB(ResourceManager.InstructionEntry entry) {
@@ -504,6 +510,7 @@ public class InstLuncher {
             } else {
                 rMgr.register[ResourceManager.REG_SW] = 0;
             }
+            rMgr.lastUsedDeviceName = deviceName;
             // Always print the result, not inside any conditional
             System.out.printf("[TD] Device file (ASCII from nibbles) '%s' %s → SW = %d\n",
                 deviceName,
